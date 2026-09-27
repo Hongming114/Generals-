@@ -48,6 +48,12 @@ AI_COUNT_MIN = 1
 AI_COUNT_MAX = MAX_PLAYERS - 1
 MAX_ZOOM = 9.0
 MAP_SIZES = (20, 39, 45, 51, 75, 100)
+ARROW_KEY_STEPS = {
+    pygame.K_UP: (0, -1),
+    pygame.K_DOWN: (0, 1),
+    pygame.K_LEFT: (-1, 0),
+    pygame.K_RIGHT: (1, 0),
+}
 VIEW_PAN_PIXELS_PER_SECOND = 1480.0
 VIEW_PAN_SPRINT_MULTIPLIER = 1.8
 VIEW_PAN_RESPONSE = 13.0
@@ -448,6 +454,16 @@ class GameApp:
         self.fog_scaled_size = (0, 0)
         self.board_render_revision = 0
         self.board_cache_surface: pygame.Surface | None = None
+        self.city_icon_cache: dict[
+            tuple[
+                int,
+                int,
+                tuple[int, int, int],
+                tuple[int, int, int],
+                tuple[int, int, int],
+            ],
+            pygame.Surface,
+        ] = {}
         self.board_cache_key: tuple[int, str, int] | None = None
         self.board_chunk_key: tuple[int, str, int] | None = None
         self.board_chunk_cache: dict[tuple[int, int], pygame.Surface] = {}
@@ -814,12 +830,12 @@ class GameApp:
             self.camera_velocity[1] = 0.0
             return
         keys = pygame.key.get_pressed()
-        dx = int(keys[pygame.K_d] or keys[pygame.K_RIGHT]) - int(
-            keys[pygame.K_a] or keys[pygame.K_LEFT]
-        )
-        dy = int(keys[pygame.K_s] or keys[pygame.K_DOWN]) - int(
-            keys[pygame.K_w] or keys[pygame.K_UP]
-        )
+        arrow_controls_selection = self._selection_accepts_arrow_input()
+        dx = int(keys[pygame.K_d]) - int(keys[pygame.K_a])
+        dy = int(keys[pygame.K_s]) - int(keys[pygame.K_w])
+        if not arrow_controls_selection:
+            dx += int(keys[pygame.K_RIGHT]) - int(keys[pygame.K_LEFT])
+            dy += int(keys[pygame.K_DOWN]) - int(keys[pygame.K_UP])
         if dx and dy:
             diagonal = math.sqrt(2.0)
             target_x = dx / diagonal
@@ -1561,6 +1577,37 @@ class GameApp:
             if tile.owner == HUMAN:
                 self.mark_human_main_army(cell)
 
+    def _selection_accepts_arrow_input(self) -> bool:
+        if (
+            self.state not in ("PLAYING", "PAUSED")
+            or self.selected is None
+            or self.spectating
+            or self.ai_takeover
+        ):
+            return False
+        controller = getattr(self.human_ai, "army_controller", None)
+        army_positions = controller.positions if controller is not None else set()
+        if self.selected in army_positions:
+            return False
+        source = self.command_source_at(self.selected) or self.selected
+        if source in army_positions or not self.board.in_bounds(*source):
+            return False
+        return self.board.tile(*source).owner == HUMAN
+
+    def move_selection_by_arrow(self, key: int) -> bool:
+        if not self._selection_accepts_arrow_input():
+            return False
+        dx, dy = ARROW_KEY_STEPS[key]
+        target = (self.selected[0] + dx, self.selected[1] + dy)
+        source = self.command_source_at(self.selected) or self.selected
+        if (
+            self.board.in_bounds(*target)
+            and self.board.tile(*target).terrain != MOUNTAIN
+            and self.queue_command(source, target, "all")
+        ):
+            self.selected = target
+        return True
+
     def toggle_pause(self) -> None:
         if self.state == "PLAYING":
             self.state = "PAUSED"
@@ -1606,6 +1653,10 @@ class GameApp:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_F11:
                     self.toggle_fullscreen()
+                elif event.key in ARROW_KEY_STEPS and self.move_selection_by_arrow(
+                    event.key
+                ):
+                    pass
                 elif event.key == pygame.K_ESCAPE:
                     if self.state == "HELP":
                         self.state = self.previous_state
@@ -2914,15 +2965,97 @@ class GameApp:
         surface: pygame.Surface | None = None,
     ) -> None:
         target_surface = self.screen if surface is None else surface
-        center = rect.center
-        radius = max(4, rect.width // 7)
-        pygame.draw.circle(target_surface, CITY_COLOR, center, radius + 1)
-        pygame.draw.circle(target_surface, CITY_LIGHT, center, radius, 1)
-        for angle in (0, 90, 180, 270):
-            radians = math.radians(angle)
-            start = (center[0] + int(math.cos(radians) * (radius + 2)), center[1] + int(math.sin(radians) * (radius + 2)))
-            end = (center[0] + int(math.cos(radians) * (radius + 6)), center[1] + int(math.sin(radians) * (radius + 6)))
-            pygame.draw.line(target_surface, CITY_LIGHT, start, end, 1)
+        width = max(1, rect.width)
+        height = max(1, rect.height)
+        key = (width, height, CITY_COLOR, CITY_LIGHT, CITY_DARK)
+        icon = self.city_icon_cache.get(key)
+        if icon is None:
+            icon = pygame.Surface((width, height), pygame.SRCALPHA)
+            self._draw_castle_icon(icon)
+            self.city_icon_cache[key] = icon
+        target_surface.blit(icon, rect.topleft)
+
+    def _draw_castle_icon(self, surface: pygame.Surface) -> None:
+        width, height = surface.get_size()
+
+        def point(x_ratio: float, y_ratio: float) -> tuple[int, int]:
+            return (
+                int(round((width - 1) * x_ratio)),
+                int(round((height - 1) * y_ratio)),
+            )
+
+        silhouette = [
+            point(0.12, 0.72),
+            point(0.12, 0.30),
+            point(0.19, 0.30),
+            point(0.19, 0.38),
+            point(0.26, 0.38),
+            point(0.26, 0.30),
+            point(0.33, 0.30),
+            point(0.33, 0.48),
+            point(0.37, 0.48),
+            point(0.37, 0.24),
+            point(0.43, 0.24),
+            point(0.43, 0.14),
+            point(0.50, 0.14),
+            point(0.50, 0.24),
+            point(0.57, 0.24),
+            point(0.57, 0.14),
+            point(0.63, 0.14),
+            point(0.63, 0.24),
+            point(0.67, 0.24),
+            point(0.67, 0.48),
+            point(0.74, 0.48),
+            point(0.74, 0.30),
+            point(0.81, 0.30),
+            point(0.81, 0.38),
+            point(0.88, 0.38),
+            point(0.88, 0.30),
+            point(0.88, 0.72),
+            point(0.76, 0.82),
+            point(0.24, 0.82),
+        ]
+        outline_width = max(1, int(min(width, height) * 0.055))
+        pygame.draw.polygon(surface, CITY_LIGHT, silhouette)
+        pygame.draw.lines(surface, CITY_COLOR, True, silhouette, outline_width)
+
+        window_width = max(1, int(width * 0.055))
+        window_height = max(2, int(height * 0.09))
+        for x_ratio in (0.205, 0.725):
+            pygame.draw.rect(
+                surface,
+                CITY_DARK,
+                pygame.Rect(
+                    int((width - 1) * x_ratio),
+                    int((height - 1) * 0.50),
+                    window_width,
+                    window_height,
+                ),
+            )
+        pygame.draw.rect(
+            surface,
+            CITY_DARK,
+            pygame.Rect(
+                int((width - 1) * 0.465),
+                int((height - 1) * 0.34),
+                max(2, int(width * 0.07)),
+                max(2, int(height * 0.11)),
+            ),
+        )
+
+        door_rect = pygame.Rect(
+            int((width - 1) * 0.435),
+            int((height - 1) * 0.64),
+            max(2, int(width * 0.13)),
+            max(2, int(height * 0.18)),
+        )
+        pygame.draw.rect(surface, CITY_DARK, door_rect)
+        pygame.draw.circle(
+            surface,
+            CITY_DARK,
+            (door_rect.centerx, door_rect.top),
+            max(1, door_rect.width // 2),
+        )
 
     def draw_general(
         self,
@@ -3305,7 +3438,7 @@ class GameApp:
             (
                 "地图、丘陵与视野",
                 [
-                    "方向键/WASD 移动视角，滚轮缩放，0 返回最小比例。",
+                    "WASD 移动视角；选中格子后方向键逐格追加路线。",
                     "丘陵移动与扩兵更慢；己方丘陵不受额外延迟。",
                     "丘陵阻挡直线视野；0 至 5 格视野可在设置页调整。",
                     "关闭迷雾时你可见全图，AI 仍读取自己的视野。",
@@ -3315,6 +3448,7 @@ class GameApp:
                 "命令",
                 [
                     "左键全军、右键半军；单击相邻格追加一步路径。",
+                    "选中可指挥格子后，方向键控制其向对应方向移动一格。",
                     "单击非相邻格只更换选中；点击战场外取消选中。",
                     "最多连续指挥 64 步，两兵地块也可开始路线。",
                     "选中主 AI 或真人指挥的部队会建立隐藏主军队标签，随该部队移动并在 10 回合未操作后撤销。",

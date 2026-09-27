@@ -850,6 +850,24 @@ class BoardRuleTests(unittest.TestCase):
             plain_surface.get_at((2, 2))[:3],
         )
 
+    def test_city_icon_uses_cached_castle_shape(self) -> None:
+        app = route_app()
+        rect = pygame.Rect(0, 0, 32, 32)
+        first_surface = pygame.Surface((32, 32), pygame.SRCALPHA)
+        second_surface = pygame.Surface((32, 32), pygame.SRCALPHA)
+
+        app.draw_city(rect, surface=first_surface)
+        app.draw_city(rect, surface=second_surface)
+
+        self.assertEqual(len(app.city_icon_cache), 1)
+        icon = next(iter(app.city_icon_cache.values()))
+        self.assertGreater(icon.get_at((16, 4)).a, 0)
+        self.assertGreater(icon.get_at((16, 24)).a, 0)
+        self.assertEqual(
+            pygame.image.tobytes(first_surface, "RGBA"),
+            pygame.image.tobytes(second_surface, "RGBA"),
+        )
+
 class RouteCommandTests(unittest.TestCase):
     def tearDown(self) -> None:
         pygame.quit()
@@ -999,6 +1017,45 @@ class RouteCommandTests(unittest.TestCase):
 
         self.assertEqual(app.route_end((10, 10)), (11, 10))
         self.assertEqual(app.selected, (11, 10))
+
+    def test_arrow_keys_extend_selected_route_one_tile(self) -> None:
+        app = route_app()
+        set_tile(app.board, 10, 10, Tile(PLAIN, HUMAN, 4))
+        set_tile(app.board, 11, 10, Tile(PLAIN, NEUTRAL, 0))
+        set_tile(app.board, 11, 11, Tile(PLAIN, NEUTRAL, 0))
+        app.selected = (10, 10)
+
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RIGHT))
+        app.handle_events()
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_DOWN))
+        app.handle_events()
+
+        self.assertEqual(app.route_end((10, 10)), (11, 11))
+        self.assertEqual(app.selected, (11, 11))
+        self.assertEqual(len(app.human_commands[(10, 10)]), 2)
+        self.assertTrue(
+            all(command.mode == "all" for command in app.human_commands[(10, 10)])
+        )
+
+    def test_arrow_key_does_not_pan_when_selection_is_commandable(self) -> None:
+        app = route_app()
+        set_tile(app.board, 10, 10, Tile(PLAIN, HUMAN, 4))
+        app.selected = (10, 10)
+        initial_x = app.camera_center[0]
+
+        class PressedKeys:
+            @staticmethod
+            def __getitem__(key: int) -> bool:
+                return key == pygame.K_RIGHT
+
+        with mock.patch.object(
+            main_module.pygame.key,
+            "get_pressed",
+            return_value=PressedKeys(),
+        ):
+            app.handle_keyboard_held(0.1)
+
+        self.assertEqual(app.camera_center[0], initial_x)
 
     def test_paused_commands_execute_in_chronological_phase_order(self) -> None:
         app = route_app()
