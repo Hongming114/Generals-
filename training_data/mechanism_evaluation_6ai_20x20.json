@@ -1,0 +1,77 @@
+{
+  "ai_turns": {
+    "gather_mode_turns": {
+      "border": 5409,
+      "border_launch": 6924,
+      "overwhelming": 7515
+    },
+    "idle_rate": 0.000147,
+    "idle_turns": 16,
+    "mission_turns": {
+      "attack_enemy_city": 63941,
+      "attack_enemy_land": 13464,
+      "attack_neutral_city": 1963,
+      "defend_home_city": 20244,
+      "defend_territory": 3360,
+      "explore_expand": 5875
+    },
+    "sampled_player_turns": 108847,
+    "strategy_state_turns": {
+      "attack": 56090,
+      "defense": 47519,
+      "development": 2408,
+      "exploration": 2830
+    }
+  },
+  "checks": {
+    "capital_depth_task_executed": true,
+    "combat_coverage": true,
+    "contact_coverage": true,
+    "development_executed": true,
+    "four_strategy_states": true,
+    "home_guard_executed": true,
+    "major_battle_executed": true,
+    "no_idle_with_movable_army": true,
+    "six_mission_categories": true
+  },
+  "config": {
+    "map_size": 20,
+    "matches": 100,
+    "max_turns": 900,
+    "players_per_match": 6,
+    "seed": 20260925,
+    "source": "mechanism_audit_6ai_20x20"
+  },
+  "elapsed_seconds": 56.948,
+  "generated_at": 1790348100.2917018,
+  "matches": {
+    "average_major_battle_turns_per_player": 8.138,
+    "average_turns": 337.89,
+    "battle_matches": 100,
+    "battle_rate": 1.0,
+    "contact_matches": 100,
+    "contact_rate": 1.0,
+    "max_turns_observed": 900,
+    "requested": 100,
+    "resolution_rate": 0.96,
+    "resolved": 96
+  },
+  "matches_per_second": 1.756,
+  "mechanism_evidence": {
+    "city_gather_seen": false,
+    "land_gather_seen": false,
+    "players_with_all_in": 563,
+    "players_with_attrition_development": 375,
+    "players_with_border_muster": 426,
+    "players_with_capital_depth_task": 600,
+    "players_with_home_guard": 600
+  },
+  "training_ingestion": {
+    "completed_matches_after": 172,
+    "completed_matches_before": 72,
+    "generation_after": 10,
+    "generation_before": 9,
+    "history_file": "C:\\Users\\chair\\Documents\\Codex\\2026-09-25\\ge\\outputs\\generals_pygame\\training_data\\history.jsonl",
+    "ingested": true
+  }
+}
