@@ -16,6 +16,15 @@ python main.py
 python -m pip install -r requirements.txt
 ```
 
+### 无 Python 环境运行
+
+下载仓库根目录的 `Generals.exe`，双击即可运行，不需要安装 Python 或 Pygame。
+
+- 首次运行会在 `Generals.exe` 同目录创建或补全 `training_data`，后续训练进度仍会保存在本机。
+- 若将 `Generals.exe` 单独移动到其他目录，请确保该目录可写，否则训练数据无法持久化。
+- 程序为 Windows 64 位单文件打包版本；首次启动需要先解压运行时文件，因此会比后续操作界面稍慢。
+- 源码启动方式仍然保留，方便继续调试或自行修改后重新打包。
+
 ## 自动回合
 
 - 不再需要手动点击“结束回合”。

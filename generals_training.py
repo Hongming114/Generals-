@@ -7,6 +7,8 @@ from multiprocessing import shared_memory
 import os
 from pathlib import Path
 import random
+import shutil
+import sys
 import threading
 import time
 from typing import Any
@@ -47,6 +49,29 @@ TRAINING_ONLINE_WEIGHT = 0.10
 TRAINING_DUEL_MAX_TURNS = 300
 TRAINING_ONLINE_HISTORY = 40
 _LIVE_MEMORY_HANDLES: dict[str, shared_memory.SharedMemory] = {}
+
+
+def _default_training_data_dir() -> Path:
+    configured = os.environ.get("GENERALS_TRAINING_DIR")
+    if configured:
+        return Path(configured)
+    if not getattr(sys, "frozen", False):
+        return Path(__file__).resolve().with_name("training_data")
+
+    executable_dir = Path(sys.executable).resolve().parent
+    data_dir = executable_dir / "training_data"
+    bundled_dir = Path(getattr(sys, "_MEIPASS", executable_dir)) / "training_data"
+    if bundled_dir.is_dir():
+        data_dir.mkdir(parents=True, exist_ok=True)
+        for source in bundled_dir.rglob("*"):
+            if not source.is_file():
+                continue
+            destination = data_dir / source.relative_to(bundled_dir)
+            if destination.exists():
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+    return data_dir
 
 
 def _training_episode_task(
@@ -153,12 +178,7 @@ class TrainingEngine:
         )
         self.live_render = live_render
         self.rng = random.Random(seed)
-        configured = data_dir or os.environ.get("GENERALS_TRAINING_DIR")
-        self.data_dir = (
-            Path(configured)
-            if configured
-            else Path(__file__).resolve().with_name("training_data")
-        )
+        self.data_dir = Path(data_dir) if data_dir else _default_training_data_dir()
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         self.generation = 0

@@ -4,6 +4,7 @@ import argparse
 from collections import OrderedDict
 from dataclasses import dataclass
 import math
+import multiprocessing
 import os
 import random
 import time
@@ -3415,4 +3416,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     raise SystemExit(main())
